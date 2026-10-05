@@ -221,7 +221,7 @@ input[type=text],select{font:inherit;font-size:16px;color:var(--ink);background:
     </div>
   </section>
 
-  <div class="foot"><span class="sync" id="sync">Cargando…</span><span>Toca un día para revisarlo</span></div>
+  <div class="foot"><span class="sync" id="sync">Cargando…</span><span>Versión 3 · 5 oct</span></div>
 </div>
 <div class="toast" id="toast" style="opacity:0"></div>
 
@@ -491,7 +491,7 @@ $("importFile").addEventListener("change",async e=>{
   e.target.value="";
 });
 document.addEventListener("visibilitychange",()=>{if(!document.hidden&&sel!==todayKey()&&start.lastToday!==todayKey()){sel=todayKey();start.lastToday=sel;render()}});
-if("serviceWorker" in navigator)window.addEventListener("load",()=>navigator.serviceWorker.register("sw.js").catch(()=>{}));
+if("serviceWorker" in navigator)window.addEventListener("load",()=>navigator.serviceWorker.register("sw.js",{updateViaCache:"none"}).then(r=>r.update()).catch(()=>{}),navigator.serviceWorker.addEventListener("controllerchange",()=>{if(!window.__r){window.__r=1;location.reload()}}).catch(()=>{}));
 setInterval(()=>{const t=todayKey();if(start.lastToday&&start.lastToday!==t&&sel===start.lastToday){sel=t;render()}start.lastToday=t},60000);
 start.lastToday=todayKey();
 start();
