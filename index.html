@@ -110,6 +110,27 @@ button:disabled{cursor:default}
 .goal .from{display:block;font-size:11.5px;color:var(--warn);font-family:var(--mono);margin-top:1px}
 .goal.r span{color:var(--muted)}
 .goal.r .from{color:var(--muted)}
+.agenda .item{display:grid;grid-template-columns:auto auto 1fr auto;gap:10px;align-items:center;padding:12px 14px;border-top:1px solid var(--line)}
+.agenda .item:first-child{border-top:0}
+.agenda .item input[type=checkbox]{width:22px;height:22px;accent-color:var(--done)}
+.agenda .hr{font-family:var(--mono);font-size:13px;color:var(--accent);min-width:44px}
+.agenda .hr.none{display:none}
+.agenda .item.nohr{grid-template-columns:auto 1fr auto}
+.agenda .txt{min-width:0;overflow-wrap:anywhere;font-weight:500}
+.agenda .item.d .txt{color:var(--muted);text-decoration:line-through}
+.agenda .x{color:var(--muted);width:30px;height:30px;border-radius:50%}
+.agenda .x:hover{background:var(--sunk)}
+.agenda .none-msg{padding:14px 16px;color:var(--muted);font-size:14px}
+.ag-form{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:12px 14px;border-top:1px solid var(--line);background:color-mix(in srgb,var(--sunk) 40%,var(--surface))}
+.ag-form #agText{grid-column:1/-1}
+.ag-form .btn{grid-column:1/-1}
+input[type=date],input[type=time]{font:inherit;font-size:16px;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:9px 10px;min-width:0;width:100%;-webkit-appearance:none;appearance:none;min-height:42px}
+.upnext .row{display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:center;padding:10px 14px;border-top:1px solid var(--line)}
+.upnext .row:first-child{border-top:0}
+.upnext .when{font-family:var(--mono);font-size:12.5px;color:var(--muted);min-width:64px}
+.upnext .when b{color:var(--ink);font-weight:500}
+.wd .dot{width:5px;height:5px;border-radius:50%;background:var(--accent);margin-top:-3px}
+.wd .dot.empty{background:transparent}
 .goal-add{display:flex;gap:8px;margin-top:4px}
 input[type=text],select{font:inherit;font-size:16px;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:10px 12px;min-width:0;width:100%}
 .btn{background:var(--ink);color:var(--bg);border-radius:10px;padding:10px 14px;font-weight:600;white-space:nowrap}
@@ -175,6 +196,23 @@ input[type=text],select{font:inherit;font-size:16px;color:var(--ink);background:
 
   <nav class="week" id="week" aria-label="Semana"></nav>
 
+  <section class="group agenda" aria-labelledby="agH">
+    <div class="group-h"><span class="eyebrow" id="agH">Agenda del día</span><button class="eyebrow" id="agToggle" style="color:var(--accent)">+ Anotar</button></div>
+    <div class="list">
+      <div id="agList"></div>
+      <form class="ag-form" id="agForm" hidden>
+        <input type="text" id="agText" placeholder="Ej. Cita con el nutricionista" maxlength="120" autocomplete="off" required>
+        <input type="date" id="agDate" aria-label="Fecha" required>
+        <input type="time" id="agTime" aria-label="Hora (opcional)">
+        <button class="btn accent" type="submit">Guardar en la agenda</button>
+      </form>
+    </div>
+  </section>
+  <section class="group upnext" id="upWrap" hidden aria-labelledby="upH">
+    <div class="group-h"><span class="eyebrow" id="upH">Próximos días</span><span class="goal-count" id="upCount"></span></div>
+    <div class="list" id="upList"></div>
+  </section>
+
   <main id="habits" style="display:flex;flex-direction:column;gap:20px"></main>
 
   <section class="panel" aria-labelledby="histH">
@@ -221,7 +259,7 @@ input[type=text],select{font:inherit;font-size:16px;color:var(--ink);background:
     </div>
   </section>
 
-  <div class="foot"><span class="sync" id="sync">Cargando…</span><span>Versión 3 · 5 oct</span></div>
+  <div class="foot"><span class="sync" id="sync">Cargando…</span><span>Versión 4 · 5 oct</span></div>
 </div>
 <div class="toast" id="toast" style="opacity:0"></div>
 
@@ -259,8 +297,8 @@ const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",
 function toast(t){const el=$("toast");el.textContent=t;el.style.opacity=1;clearTimeout(toast.t);toast.t=setTimeout(()=>el.style.opacity=0,1600)}
 
 /* ---- modelo ---- */
-function day(k){return state.days[k]||{c:{},g:[]}}
-function ensureDay(k){if(!state.days[k])state.days[k]={c:{},g:[]};const d=state.days[k];d.c=d.c||{};d.g=d.g||[];return d}
+function day(k){return state.days[k]||{c:{},g:[],a:[]}}
+function ensureDay(k){if(!state.days[k])state.days[k]={c:{},g:[],a:[]};const d=state.days[k];d.c=d.c||{};d.g=d.g||[];d.a=d.a||[];return d}
 function scheduled(h,k){return !h.days||h.days.includes(parse(k).getDay())}
 function frac(h,k){
   const d=day(k);
@@ -340,7 +378,27 @@ function render(){
   $("ring").classList.toggle("full",p===100);
   $("ring").setAttribute("aria-label",p+"% del día cumplido");
 
-  renderWeek();renderHabits();renderHistory();if(editing)renderEditor();
+  renderAgenda();renderWeek();renderHabits();renderHistory();if(editing)renderEditor();
+}
+const sortAg=a=>a.map((x,i)=>({...x,i})).sort((x,y)=>(x.h||"99")<(y.h||"99")?-1:(x.h||"99")>(y.h||"99")?1:0);
+const fmtH=h=>{if(!h)return"";const[H,M]=h.split(":").map(Number);return((H%12)||12)+":"+String(M).padStart(2,"0")+(H<12?" am":" pm")};
+let agOpen=false;
+function renderAgenda(){
+  const t=todayKey(),items=sortAg(day(sel).a||[]);
+  $("agH").textContent=sel===t?"Agenda de hoy":"Agenda del día";
+  $("agList").innerHTML=items.length?items.map(x=>`<div class="item${x.d?" d":""}${x.h?"":" nohr"}"><input type="checkbox" id="ag-${x.i}" data-agdone="${x.i}" ${x.d?"checked":""} aria-label="Hecho"><span class="hr${x.h?"":" none"}">${x.h?fmtH(x.h):"—"}</span><label class="txt" for="ag-${x.i}">${esc(x.t)}</label><button class="x" data-agdel="${sel}|${x.i}" aria-label="Borrar">×</button></div>`).join("")
+    :`<div class="none-msg">${sel===t?"Nada agendado para hoy.":"Nada agendado este día."} Toca “+ Anotar” para agregar una cita o tarea.</div>`;
+  $("agForm").hidden=!agOpen;$("agToggle").textContent=agOpen?"Cerrar":"+ Anotar";
+  if(!$("agDate").value)$("agDate").value=sel>=t?sel:t;
+  $("agDate").min=t;
+  // próximos 14 días
+  const up=[];
+  if(sel===t)for(let i=1;i<=14;i++){const k=addDays(t,i);for(const x of sortAg(day(k).a||[]))up.push({k,...x})}
+  $("upWrap").hidden=!up.length;
+  $("upCount").textContent=up.length;
+  $("upList").innerHTML=up.map(x=>{const d=parse(x.k),n=Math.round((d-parse(t))/864e5);
+    const lab=n===1?"Mañana":DOW[d.getDay()]+" "+d.getDate();
+    return `<div class="row"><span class="when"><b>${lab}</b>${x.h?"<br>"+fmtH(x.h):""}</span><span class="txt" style="min-width:0;overflow-wrap:anywhere">${esc(x.t)}</span><button class="x" data-agdel="${x.k}|${x.i}" aria-label="Borrar" style="color:var(--muted);width:30px;height:30px;border-radius:50%">×</button></div>`}).join("");
 }
 function renderWeek(){
   const d=parse(sel),mon=(d.getDay()+6)%7,start=addDays(sel,-mon),t=todayKey();
@@ -350,7 +408,7 @@ function renderWeek(){
     h+=`<button class="wd${k===sel?" sel":""}${fut?" future":""}" data-day="${k}" ${fut?"disabled":""} aria-label="${k} ${Math.round(s*100)}%">
       <span class="l">${DOW[parse(k).getDay()]}</span>
       <span class="fill${s>=1?" full":""}"><i style="height:${fut?0:s*100}%"></i></span>
-      <span class="n">${parse(k).getDate()}</span></button>`;
+      <span class="n">${parse(k).getDate()}</span><span class="dot${(day(k).a||[]).length?"":" empty"}"></span></button>`;
   }
   $("week").innerHTML=h;
 }
@@ -436,6 +494,8 @@ document.addEventListener("click",e=>{
     if(dayScore(sel)>=1&&nv>=h.target)toast("Día completo. Bien hecho, Felix.");
     return;
   }
+  if(b.id==="agToggle"){agOpen=!agOpen;if(agOpen){$("agDate").value=sel>=todayKey()?sel:todayKey()}renderAgenda();if(agOpen)$("agText").focus();return}
+  if(b.dataset.agdel){const[k,i]=b.dataset.agdel.split("|");const d=ensureDay(k);d.a.splice(+i,1);touch(k);render();toast("Borrado de la agenda");return}
   if(b.dataset.minus){const d=ensureDay(sel);d.c[b.dataset.minus]=Math.max(0,(d.c[b.dataset.minus]||0)-1);touch(sel);render();return}
   if(b.dataset.rmgoal!==undefined){const d=ensureDay(sel);d.g.splice(+b.dataset.rmgoal,1);touch(sel);render();return}
   if(b.id==="toggleEdit"||b.id==="openEdit"){editing=b.id==="openEdit"?true:!editing;$("editBody").hidden=!editing;$("toggleEdit").textContent=editing?"Listo":"Editar";$("toggleEdit").setAttribute("aria-expanded",editing);confirmDel=null;if(editing){renderEditor();if(b.id==="openEdit")$("fName").focus()}return}
@@ -447,7 +507,8 @@ document.addEventListener("click",e=>{
   if(b.dataset.sug!==undefined){const s=SUGGEST[+b.dataset.sug];$("fName").value=s[0];$("fCat").value=s[1];$("fTarget").value=String(s[2]);$("fName").focus();return}
 });
 document.addEventListener("change",e=>{
-  const i=e.target;if(i.dataset.goal===undefined)return;
+  const i=e.target;
+  if(i.dataset.agdone!==undefined){const d=ensureDay(sel);d.a[+i.dataset.agdone].d=i.checked;touch(sel);render();return}if(i.dataset.goal===undefined)return;
   const d=ensureDay(sel);d.g[+i.dataset.goal].d=i.checked;touch(sel);render();
 });
 document.addEventListener("submit",e=>{
@@ -457,6 +518,15 @@ document.addEventListener("submit",e=>{
     const inp=f.querySelector("input"),t=inp.value.trim();if(!t)return;
     const d=ensureDay(sel);d.g.push({t,d:false});touch(sel);render();
     const ni=$("goalInput");ni&&ni.focus();return;
+  }
+  if(f.id==="agForm"){
+    const t=$("agText").value.trim(),k=$("agDate").value,h=$("agTime").value;
+    if(!t||!/^\d{4}-\d{2}-\d{2}$/.test(k))return;
+    ensureDay(k).a.push({t,h:h||"",d:false});touch(k);
+    $("agText").value="";$("agTime").value="";agOpen=false;render();
+    const d=parse(k),n=Math.round((d-parse(todayKey()))/864e5);
+    toast("Anotado para "+(n===0?"hoy":n===1?"mañana":DOW[d.getDay()]+" "+d.getDate())+(h?" a las "+fmtH(h):""));
+    return;
   }
   if(f.id==="addForm"){
     const name=$("fName").value.trim();if(!name)return;
