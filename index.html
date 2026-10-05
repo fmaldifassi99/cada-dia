@@ -491,7 +491,11 @@ $("importFile").addEventListener("change",async e=>{
   e.target.value="";
 });
 document.addEventListener("visibilitychange",()=>{if(!document.hidden&&sel!==todayKey()&&start.lastToday!==todayKey()){sel=todayKey();start.lastToday=sel;render()}});
-if("serviceWorker" in navigator)window.addEventListener("load",()=>navigator.serviceWorker.register("sw.js",{updateViaCache:"none"}).then(r=>r.update()).catch(()=>{}),navigator.serviceWorker.addEventListener("controllerchange",()=>{if(!window.__r){window.__r=1;location.reload()}}).catch(()=>{}));
+if("serviceWorker" in navigator){
+  let reloaded=false,hadController=!!navigator.serviceWorker.controller;
+  navigator.serviceWorker.addEventListener("controllerchange",()=>{if(hadController&&!reloaded){reloaded=true;location.reload()}});
+  window.addEventListener("load",()=>{navigator.serviceWorker.register("sw.js",{updateViaCache:"none"}).then(r=>r.update()).catch(()=>{})});
+}
 setInterval(()=>{const t=todayKey();if(start.lastToday&&start.lastToday!==t&&sel===start.lastToday){sel=t;render()}start.lastToday=t},60000);
 start.lastToday=todayKey();
 start();
