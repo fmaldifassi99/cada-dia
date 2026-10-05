@@ -34,6 +34,7 @@
   --accent:#8A8EFF; --accent-ink:#0E121C; --done:#4CCB90; --done-soft:#173A2C; --warn:#E9A25A; color-scheme:dark}
 
 *{box-sizing:border-box}
+[hidden]{display:none!important}
 html{background:var(--bg)}
 body{margin:0;padding-top:env(safe-area-inset-top,0px)!important;padding-bottom:env(safe-area-inset-bottom,0px)!important;-webkit-text-size-adjust:100%;background:var(--bg);color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.45;padding:0 16px;-webkit-tap-highlight-color:transparent}
 .wrap{max-width:520px;margin:0 auto;padding-block:20px 48px;display:flex;flex-direction:column;gap:22px}
@@ -106,6 +107,9 @@ button:disabled{cursor:default}
 .goal.d span{color:var(--muted);text-decoration:line-through}
 .goal .x{color:var(--muted);width:28px;height:28px;border-radius:50%;flex:none}
 .goal .x:hover{background:var(--sunk)}
+.goal .from{display:block;font-size:11.5px;color:var(--warn);font-family:var(--mono);margin-top:1px}
+.goal.r span{color:var(--muted)}
+.goal.r .from{color:var(--muted)}
 .goal-add{display:flex;gap:8px;margin-top:4px}
 input[type=text],select{font:inherit;font-size:16px;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:10px 12px;min-width:0;width:100%}
 .btn{background:var(--ink);color:var(--bg);border-radius:10px;padding:10px 14px;font-weight:600;white-space:nowrap}
@@ -278,6 +282,25 @@ function habitStreak(h){
   return n;
 }
 
+/* Objetivos de trabajo pendientes: pasan al día de hoy hasta que se cumplan */
+function rollover(){
+  const t=todayKey();let moved=[];
+  for(const k of Object.keys(state.days).sort()){
+    if(k>=t)continue;
+    const g=state.days[k].g||[];
+    for(const x of g)if(!x.d&&!x.r){x.r=true;moved.push({t:x.t,d:false,from:x.from||k})}
+  }
+  if(!moved.length)return;
+  const td=ensureDay(t);
+  const have=new Set(td.g.filter(x=>x.from).map(x=>x.from+"|"+x.t));
+  td.g=[...moved.filter(x=>!have.has(x.from+"|"+x.t)),...td.g];
+  saveLocal();
+}
+function fromLabel(k){
+  const n=Math.round((parse(todayKey())-parse(k))/864e5),d=parse(k);
+  return "Pendiente desde el "+DOW[d.getDay()].toLowerCase()+" "+d.getDate()+" · "+(n===1?"1 día":n+" días");
+}
+
 /* ---- guardar ---- */
 function saveLocal(){try{localStorage.setItem(LS,JSON.stringify(state))}catch(e){}}
 function touch(k){
@@ -305,6 +328,7 @@ function writeErr(e){
 
 /* ---- render ---- */
 function render(){
+  rollover();
   const t=todayKey(),isToday=sel===t,d=parse(sel);
   $("dayTitle").textContent=isToday?"Hoy":sel===addDays(t,-1)?"Ayer":DOW[d.getDay()]+" "+d.getDate();
   $("daySub").textContent=["Domingo","Lunes","Martes","Miércoles","Jueves","Viernes","Sábado"][d.getDay()]+", "+d.getDate()+" de "+MONTHS[d.getMonth()];
@@ -367,7 +391,7 @@ function renderHabits(){
   $("habits").innerHTML=out;
 }
 function renderGoals(g){
-  return `<div class="goals">${g.map((x,i)=>`<div class="goal${x.d?" d":""}"><input type="checkbox" id="g-${i}" data-goal="${i}" ${x.d?"checked":""}><span><label for="g-${i}">${esc(x.t)}</label></span><button class="x" data-rmgoal="${i}" aria-label="Quitar objetivo">×</button></div>`).join("")}
+  return `<div class="goals">${g.map((x,i)=>x.r?`<div class="goal r"><input type="checkbox" id="g-${i}" disabled aria-label="Pasó al día siguiente"><span>${esc(x.t)}<span class="from">Pasó al día siguiente</span></span></div>`:`<div class="goal${x.d?" d":""}"><input type="checkbox" id="g-${i}" data-goal="${i}" ${x.d?"checked":""}><span><label for="g-${i}">${esc(x.t)}</label>${x.from?`<span class="from">${fromLabel(x.from)}</span>`:""}</span><button class="x" data-rmgoal="${i}" aria-label="Quitar objetivo">×</button></div>`).join("")}
   <form class="goal-add" data-goalform><input type="text" id="goalInput" placeholder="${g.length?"Otro objetivo…":"¿Qué tienes que lograr hoy?"}" maxlength="120" autocomplete="off"><button class="btn" type="submit">Añadir</button></form></div>`;
 }
 function renderHistory(){
